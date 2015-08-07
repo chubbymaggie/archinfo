@@ -41,7 +41,11 @@ class ArchX86(Arch):
     nop_instruction = "\x90"
     instruction_alignment = 1
     default_register_values = [
-        ( 'esp', Arch.initial_sp, True, 'global' ) # the stack
+        ( 'esp', Arch.initial_sp, True, 'global' ), # the stack
+        ( 'fpround', 0, False, None ),
+        ( 'sseround', 0, False, None ),
+        ( 'gdt', 0, False, None ),
+        ( 'ldt', 0, False, None )
     ]
     entry_register_values = {
         'eax': 0x1C,
@@ -72,7 +76,51 @@ class ArchX86(Arch):
 
         68: 'eip',
 
+        # fpu registers
+        72: 'st0',
+        80: 'st1',
+        88: 'st2',
+        96: 'st2',
+        104: 'st4',
+        112: 'st5',
+        120: 'st6',
+        128: 'st7',
+
+        # fpu tags
+        136: 'fpu_t0',
+        137: 'fpu_t1',
+        138: 'fpu_t2',
+        139: 'fpu_t3',
+        140: 'fpu_t4',
+        141: 'fpu_t5',
+        142: 'fpu_t6',
+        143: 'fpu_t7',
+
+        # fpu settings
+        144: 'fpround',
+        148: 'fc3210',
+        152: 'ftop',
+
+        # sse
+        156: 'sseround',
+        160: 'xmm0',
+        176: 'xmm1',
+        192: 'xmm2',
+        208: 'xmm3',
+        224: 'xmm4',
+        240: 'xmm5',
+        256: 'xmm6',
+        272: 'xmm7',
+
+        288: 'cs',
+        290: 'ds',
+        292: 'es',
+        294: 'fs',
         296: 'gs',
+        298: 'ss',
+
+        304: 'ldt',
+        312: 'gdt'
     }
 
     registers = {
@@ -101,7 +149,60 @@ class ArchX86(Arch):
         'pc': (68, 4),
         'ip': (68, 4),
 
+        # fpu registers and mmx aliases
+        'fpu_regs': (72, 64),
+        'st0': (72, 8),
+        'st1': (80, 8),
+        'st2': (88, 8),
+        'st3': (96, 8),
+        'st4': (104, 8),
+        'st5': (112, 8),
+        'st6': (120, 8),
+        'st7': (128, 8),
+        'mm0': (72, 8),
+        'mm1': (80, 8),
+        'mm2': (88, 8),
+        'mm3': (96, 8),
+        'mm4': (104, 8),
+        'mm5': (112, 8),
+        'mm6': (120, 8),
+        'mm7': (128, 8),
+
+        # fpu tags
+        'fpu_tags': (136, 8),
+        'fpu_t0': (136, 1),
+        'fpu_t1': (137, 1),
+        'fpu_t2': (138, 1),
+        'fpu_t3': (139, 1),
+        'fpu_t4': (140, 1),
+        'fpu_t5': (141, 1),
+        'fpu_t6': (142, 1),
+        'fpu_t7': (143, 1),
+
+        # fpu settings
+        'fpround': (144, 4),
+        'fc3210': (148, 4),
+        'ftop': (152, 4),
+
+        # sse
+        'sseround': (156, 4),
+        'xmm0': (160, 16),
+        'xmm1': (176, 16),
+        'xmm2': (192, 16),
+        'xmm3': (208, 16),
+        'xmm4': (224, 16),
+        'xmm5': (240, 16),
+        'xmm6': (256, 16),
+        'xmm7': (272, 16),
+
+        'cs': (288, 2),
+        'ds': (290, 2),
+        'es': (292, 2),
+        'fs': (294, 2),
         'gs': (296, 2),
+        'ss': (298, 2),
+        'ldt': (304, 8),
+        'gdt': (312, 8)
     }
 
     argument_registers = { registers['eax'][0],
@@ -115,8 +216,10 @@ class ArchX86(Arch):
     lib_paths = ['/lib32']
     reloc_s_a = [1]
     reloc_b_a = [8]
-    reloc_s = [6]
+    reloc_s = [6, 7]
     reloc_copy = [5]
-    reloc_tls_mod_id = [15]
-    reloc_tls_offset = [36,37] # wrong
+    reloc_tls_mod_id = [35]
+    reloc_tls_doffset = [36]
+    reloc_tls_offset = [14]
     got_section_name = '.got.plt'
+    ld_linux_name = 'ld-linux.so.2'

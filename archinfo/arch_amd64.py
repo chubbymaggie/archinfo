@@ -45,7 +45,9 @@ class ArchAMD64(Arch):
     default_register_values = [
         ( 'd', 1, False, None ),
         ( 'rsp', initial_sp, True, 'global' ),
-        ( 'fs', 0x9000000000000000, True, 'global')
+        ( 'fs', 0x9000000000000000, True, 'global'),
+        ( 'sseround', 0, False, None ),
+        ( 'fpround', 0, False, None ),
     ]
     entry_register_values = {
         'rax': 0x1c,
@@ -87,6 +89,9 @@ class ArchAMD64(Arch):
         184: 'rip',
 
         208: 'fs',
+
+        216: 'sseround',
+        884: 'fpround'
     }
 
     registers = {
@@ -124,7 +129,10 @@ class ArchAMD64(Arch):
         'pc': (184, 8),
         'ip': (184, 8),
 
-        'fs': (208, 8)
+        'fs': (208, 8),
+
+        'sseround': (216, 8),
+        'fpround': (848, 8)
     }
 
     argument_registers = {
@@ -151,13 +159,16 @@ class ArchAMD64(Arch):
     # R_X86_64_GOT32
     reloc_s = [3,6,7]
     reloc_copy = [5]
-    # R_X86_64_DTPMod64
+    # R_X86_64_DTPMOD64
     reloc_tls_mod_id = [16]
-    # R_X86_64_DTPOFF64, R_X86_64_TPOFF64
-    reloc_tls_offset = [17, 18]
+    # R_X86_64_DTPOFF64
+    reloc_tls_doffset = [17]
+    # R_X86_64_TPOFF64
+    reloc_tls_offset = [18]
 
     symbol_type_translation = {
         10: 'STT_GNU_IFUNC',
         'STT_LOOS': 'STT_GNU_IFUNC'
     }
     got_section_name = '.got.plt'
+    ld_linux_name = 'ld-linux-x86-64.so.2'
