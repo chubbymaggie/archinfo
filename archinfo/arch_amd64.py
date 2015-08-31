@@ -22,6 +22,7 @@ class ArchAMD64(Arch):
     sp_offset = 48
     bp_offset = 56
     ret_offset = 16
+    syscall_num_offset = 16
     call_pushes_ret = True
     stack_change = -8
     initial_sp = 0x7ffffffffff0000

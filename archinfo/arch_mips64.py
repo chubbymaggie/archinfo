@@ -29,6 +29,7 @@ class ArchMIPS64(Arch):
     sp_offset = 232
     bp_offset = 240
     ret_offset = 16
+    syscall_register_offset = 16
     call_pushes_ret = False
     stack_change = -8
     cs_arch = _capstone.CS_ARCH_MIPS
@@ -216,8 +217,8 @@ class ArchMIPS64(Arch):
         'cmstart': (576, 8),
         'cmlen': (584, 8),
         'nraddr': (592, 8),
-        'host_evc_failaddr': (600, 8),
-        'host_evc_counter': (608, 4),
+        'evc_failaddr': (600, 8),
+        'evc_counter': (608, 4),
         'cond': (612, 4)
     }
 

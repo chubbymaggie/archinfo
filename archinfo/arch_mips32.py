@@ -32,6 +32,7 @@ class ArchMIPS32(Arch):
     sp_offset = 116
     bp_offset = 120
     ret_offset = 8
+    syscall_num_offset = 8
     call_pushes_ret = False
     stack_change = -4
     cs_arch = _capstone.CS_ARCH_MIPS

@@ -22,6 +22,7 @@ class ArchX86(Arch):
     sp_offset = 24
     bp_offset = 28
     ret_offset = 8
+    syscall_num_offset = 8
     call_pushes_ret = True
     stack_change = -4
     memory_endness = "Iend_LE"
@@ -42,6 +43,7 @@ class ArchX86(Arch):
     instruction_alignment = 1
     default_register_values = [
         ( 'esp', Arch.initial_sp, True, 'global' ), # the stack
+        ( 'd', 1, False, None ),
         ( 'fpround', 0, False, None ),
         ( 'sseround', 0, False, None ),
         ( 'gdt', 0, False, None ),
