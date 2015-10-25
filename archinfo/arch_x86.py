@@ -8,6 +8,7 @@ class ArchX86(Arch):
         if endness != 'Iend_LE':
             raise ArchError('Arch i386 must be little endian')
         super(ArchX86, self).__init__(endness)
+        self.vex_archinfo['x86_cr0'] = 0xFFFFFFFF
 
     bits = 32
     vex_arch = "VexArchX86"
@@ -47,7 +48,9 @@ class ArchX86(Arch):
         ( 'fpround', 0, False, None ),
         ( 'sseround', 0, False, None ),
         ( 'gdt', 0, False, None ),
-        ( 'ldt', 0, False, None )
+        ( 'ldt', 0, False, None ),
+        ( 'id', 1, False, None ),
+        ( 'ac', 0, False, None )
     ]
     entry_register_values = {
         'eax': 0x1C,
@@ -75,6 +78,10 @@ class ArchX86(Arch):
 
         # this determines which direction SSE instructions go
         56: 'd',
+
+        # separately-stored bits of eflags
+        60: 'id',
+        64: 'ac',
 
         68: 'eip',
 
@@ -147,6 +154,10 @@ class ArchX86(Arch):
         # this determines which direction SSE instructions go
         'd': (56, 4),
 
+        # separately-stored bits of eflags
+        'id': (60, 4),
+        'ac': (64, 4),
+
         'eip': (68, 4),
         'pc': (68, 4),
         'ip': (68, 4),
@@ -215,13 +226,6 @@ class ArchX86(Arch):
                            registers['esi'][0],
                            registers['edi'][0] }
 
-    lib_paths = ['/lib32']
-    reloc_s_a = [1]
-    reloc_b_a = [8]
-    reloc_s = [6, 7]
-    reloc_copy = [5]
-    reloc_tls_mod_id = [35]
-    reloc_tls_doffset = [36]
-    reloc_tls_offset = [14]
+    lib_paths = ['/lib32', '/usr/lib32']
     got_section_name = '.got.plt'
     ld_linux_name = 'ld-linux.so.2'
