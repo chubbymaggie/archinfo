@@ -17,14 +17,15 @@ class ArchMIPS32(Arch):
             self.function_epilogs = {
                 r"\x8f\xbf[\x00-\xff]{2}([\x00-\xff]{4}){0,4}\x03\xe0\x00\x08"      # lw ra, off(sp); ... ; jr ra
             }
+            self.qemu_name = 'mips'
             self.triplet = 'mips-linux-gnu'
             self.linux_name = 'mips'
 
     bits = 32
     vex_arch = "VexArchMIPS32"
     name = "MIPS32"
-    qemu_name = 'mips'
     ida_processor = 'mipsb'
+    qemu_name = 'mipsel'
     linux_name = 'mipsel' # ???
     triplet = 'mipsel-linux-gnu'
     max_inst_bytes = 4
@@ -279,7 +280,8 @@ class ArchMIPS32(Arch):
         0x70000011: 'DT_MIPS_SYMTABNO',
         0x70000012: 'DT_MIPS_UNREFEXTNO',
         0x70000013: 'DT_MIPS_GOTSYM',
-        0x70000016: 'DT_MIPS_RLD_MAP'
+        0x70000016: 'DT_MIPS_RLD_MAP',
+        0x70000032: 'DT_MIPS_PLTGOT'
     }
     got_section_name = '.got'
     ld_linux_name = 'ld.so.1'
