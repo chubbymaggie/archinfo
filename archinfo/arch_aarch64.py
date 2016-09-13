@@ -1,5 +1,10 @@
 import capstone as _capstone
 
+try:
+    import unicorn as _unicorn
+except ImportError:
+    _unicorn = None
+
 from .arch import Arch
 
 class ArchAArch64(Arch):
@@ -26,13 +31,19 @@ class ArchAArch64(Arch):
     sp_offset = 264
     bp_offset = 248
     ret_offset = 16
+    vex_conditional_helpers = True
     syscall_num_offset = 80
     call_pushes_ret = False
     stack_change = -8
     memory_endness = 'Iend_LE'
     register_endness = 'Iend_LE'
+    sizeof = {'short': 16, 'int': 32, 'long': 64, 'long long': 64}
     cs_arch = _capstone.CS_ARCH_ARM64
     cs_mode = _capstone.CS_MODE_LITTLE_ENDIAN
+    uc_arch = _unicorn.UC_ARCH_ARM64 if _unicorn else None
+    uc_mode = _unicorn.UC_MODE_LITTLE_ENDIAN if _unicorn else None
+    uc_const = _unicorn.arm64_const if _unicorn else None
+    uc_prefix = "UC_ARM64_" if _unicorn else None
     initial_sp = 0x7ffffffffff0000
 
     ret_instruction = "\xC0\x03\x5F\xD6"    # ret

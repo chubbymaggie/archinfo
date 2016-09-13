@@ -1,5 +1,10 @@
 import capstone as _capstone
 
+try:
+    import unicorn as _unicorn
+except ImportError:
+    _unicorn = None
+
 from .arch import Arch
 
 # FIXME: Tell fish to fix whatever he was storing in info['current_function']
@@ -36,8 +41,13 @@ class ArchMIPS32(Arch):
     syscall_num_offset = 8
     call_pushes_ret = False
     stack_change = -4
+    sizeof = {'short': 16, 'int': 32, 'long': 32, 'long long': 64}
     cs_arch = _capstone.CS_ARCH_MIPS
     cs_mode = _capstone.CS_MODE_32 + _capstone.CS_MODE_LITTLE_ENDIAN
+    uc_arch = _unicorn.UC_ARCH_MIPS if _unicorn else None
+    uc_mode = (_unicorn.UC_MODE_32 + _unicorn.UC_MODE_LITTLE_ENDIAN) if _unicorn else None
+    uc_const = _unicorn.mips_const if _unicorn else None
+    uc_prefix = "UC_MIPS_" if _unicorn else None
     function_prologs = {
         r"[\x00-\xff]\xff\xbd\x27",                                         # addiu $sp, xxx
         r"[\x00-\xff][\x00-\xff]\x1c\x3c[\x00-\xff][\x00-\xff]\x9c\x27"     # lui $gp, xxx; addiu $gp, $gp, xxxx
@@ -151,7 +161,8 @@ class ArchMIPS32(Arch):
         456: 'ac0',
         464: 'ac1',
         472: 'ac2',
-        480: 'ac3'
+        480: 'ac3',
+        488: 'ip_at_syscall'
     }
 
     registers = {
@@ -197,38 +208,41 @@ class ArchMIPS32(Arch):
         'hi': (132, 4),
         'lo': (136, 4),
 
-        'f0': (144, 8),
-        'f1': (152, 8),
-        'f2': (160, 8),
-        'f3': (168, 8),
-        'f4': (176, 8),
-        'f5': (184, 8),
-        'f6': (192, 8),
-        'f7': (200, 8),
-        'f8': (208, 8),
-        'f9': (216, 8),
-        'f10': (224, 8),
-        'f11': (232, 8),
-        'f12': (240, 8),
-        'f13': (248, 8),
-        'f14': (256, 8),
-        'f15': (264, 8),
-        'f16': (272, 8),
-        'f17': (280, 8),
-        'f18': (288, 8),
-        'f19': (296, 8),
-        'f20': (304, 8),
-        'f21': (312, 8),
-        'f22': (320, 8),
-        'f23': (328, 8),
-        'f24': (336, 8),
-        'f25': (344, 8),
-        'f26': (352, 8),
-        'f27': (360, 8),
-        'f28': (368, 8),
-        'f29': (376, 8),
-        'f30': (384, 8),
-        'f31': (392, 8),
+        # these registers are allocated 64 bits by VEX but they are only 32-bit
+        # it's a little sketchy tbh because some 32-bit mips arches DO in fact have a
+        # 64-bit FPU but I have no idea how to deal with those
+        'f0': (144, 4),
+        'f1': (152, 4),
+        'f2': (160, 4),
+        'f3': (168, 4),
+        'f4': (176, 4),
+        'f5': (184, 4),
+        'f6': (192, 4),
+        'f7': (200, 4),
+        'f8': (208, 4),
+        'f9': (216, 4),
+        'f10': (224, 4),
+        'f11': (232, 4),
+        'f12': (240, 4),
+        'f13': (248, 4),
+        'f14': (256, 4),
+        'f15': (264, 4),
+        'f16': (272, 4),
+        'f17': (280, 4),
+        'f18': (288, 4),
+        'f19': (296, 4),
+        'f20': (304, 4),
+        'f21': (312, 4),
+        'f22': (320, 4),
+        'f23': (328, 4),
+        'f24': (336, 4),
+        'f25': (344, 4),
+        'f26': (352, 4),
+        'f27': (360, 4),
+        'f28': (368, 4),
+        'f29': (376, 4),
+        'f30': (384, 4),
+        'f31': (392, 4),
         'fir': (400, 4),
         'fccr': (404, 4),
         'fexr': (408, 4),
@@ -246,7 +260,8 @@ class ArchMIPS32(Arch):
         'ac0': (456, 8),
         'ac1': (464, 8),
         'ac2': (472, 8),
-        'ac3': (480, 8)
+        'ac3': (480, 8),
+        'ip_at_syscall': (488, 4)
     }
 
     argument_registers = {

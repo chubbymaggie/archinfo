@@ -1,10 +1,16 @@
 import capstone as _capstone
 import struct as _struct
+import platform as _platform
 
 try:
     import pyvex as _pyvex
 except ImportError:
     _pyvex = None
+
+try:
+    import unicorn as _unicorn
+except ImportError:
+    _unicorn = None
 
 import logging
 l = logging.getLogger('archinfo.arch')
@@ -34,6 +40,25 @@ class Arch(object):
             self.ret_instruction = reverse_ends(self.ret_instruction)
             self.nop_instruction = reverse_ends(self.nop_instruction)
 
+        # generate regitster mapping (offset, size): name
+        self.register_size_names = {}
+        for k, v in self.registers.iteritems():
+            if v in self.register_size_names and k not in self.register_names:
+                continue
+            self.register_size_names[v] = k
+
+        # unicorn specific stuff
+        if self.uc_mode is not None:
+            if endness == 'Iend_BE':
+                self.uc_mode -= _unicorn.UC_MODE_LITTLE_ENDIAN
+                self.uc_mode += _unicorn.UC_MODE_BIG_ENDIAN
+            self.uc_regs = { }
+            # map register names to unicorn const
+            for r in self.register_names.itervalues():
+                reg_name = self.uc_prefix + 'REG_' + r.upper()
+                if hasattr(self.uc_const, reg_name):
+                    self.uc_regs[r] = getattr(self.uc_const, reg_name)
+
     def copy(self):
         new_arch = type(self)(self.memory_endness)
         new_arch.vex_archinfo = self.vex_archinfo.copy()
@@ -44,6 +69,8 @@ class Arch(object):
         return '<Arch %s (%s)>' % (self.name, self.memory_endness[-2:])
 
     def __eq__(self, other):
+        if not isinstance(other, Arch):
+            return False
         return  self.name == other.name and \
                 self.bits == other.bits and \
                 self.memory_endness == other.memory_endness
@@ -112,16 +139,12 @@ class Arch(object):
     @property
     def bytes(self):
         """
-        Return the size in bytes of an ``int`` type as defined by the C standard.
+        Return the standard word size in bytes
         """
         return self.bits/8
 
-    @property
-    def int_bits(self):
-        """
-        Return the size in bits of an ``int`` type as defined by the C standard.
-        """
-        return min(self.bits, 32)
+    # e.g. sizeof['int'] = 4
+    sizeof = {}
 
     @property
     def capstone(self):
@@ -131,6 +154,13 @@ class Arch(object):
             self._cs = _capstone.Cs(self.cs_arch, self.cs_mode)
             self._cs.detail = True
         return self._cs
+
+    @property
+    def unicorn(self):
+        if _unicorn is None or self.uc_arch is None:
+            raise ArchError("Arch %s does not support with unicorn" % self.name)
+        # always create a new unicorn instance
+        return _unicorn.Uc(self.uc_arch, self.uc_mode)
 
     def translate_dynamic_tag(self, tag):
         try:
@@ -148,7 +178,13 @@ class Arch(object):
                 l.error("Please look up and add symbol type %#x for %s", tag, self.name)
             return tag
 
-    def translate_register_name(self, offset):
+    def translate_register_name(self, offset, size=None):
+        if size is not None:
+            try:
+                return self.register_size_names[(offset, size)]
+            except KeyError:
+                pass
+
         try:
             return self.register_names[offset]
         except KeyError:
@@ -190,6 +226,9 @@ class Arch(object):
     bp_offset = None
     ret_offset = None
 
+    # whether or not VEX has ccall handlers for conditionals for this arch
+    vex_conditional_helpers = False
+
     # memory stuff
     bits = None
     memory_endness = 'Iend_LE'
@@ -206,6 +245,14 @@ class Arch(object):
     cs_arch = None
     cs_mode = None
     _cs = None
+
+    # Unicorn stuff
+    uc_arch = None
+    uc_mode = None
+    uc_const = None
+    uc_prefix = None
+    uc_regs = None
+
     call_pushes_ret = False
     initial_sp = 0x7fff0000
 
@@ -315,6 +362,9 @@ def arch_from_id(ident, endness='', bits=''):
 def reverse_ends(string):
     ise = 'I'*(len(string)/4)
     return _struct.pack('>' + ise, *_struct.unpack('<' + ise, string))
+
+def get_host_arch():
+    return arch_from_id(_platform.machine())
 
 # pylint: disable=unused-import
 from .arch_amd64    import ArchAMD64

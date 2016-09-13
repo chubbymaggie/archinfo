@@ -1,5 +1,10 @@
 import capstone as _capstone
 
+try:
+    import unicorn as _unicorn
+except ImportError:
+    _unicorn = None
+
 from .arch import Arch
 
 # TODO: determine proper base register (if it exists)
@@ -54,6 +59,13 @@ class ArchARM(Arch):
             self._cs_thumb.detail = True
         return self._cs_thumb
 
+    @property
+    def unicorn(self):
+        return _unicorn.Uc(self.uc_arch, self.uc_mode + _unicorn.UC_MODE_ARM) if _unicorn is not None else None
+
+    @property
+    def unicorn_thumb(self):
+        return _unicorn.Uc(self.uc_arch, self.uc_mode + _unicorn.UC_MODE_THUMB) if _unicorn is not None else None
 
     bits = 32
     vex_arch = "VexArchARM"
@@ -67,14 +79,20 @@ class ArchARM(Arch):
     sp_offset = 60
     bp_offset = 60
     ret_offset = 8
+    vex_conditional_helpers = True
     syscall_num_offset = 36
     call_pushes_ret = False
     stack_change = -4
     memory_endness = 'Iend_LE'
     register_endness = 'Iend_LE'
+    sizeof = {'short': 16, 'int': 32, 'long': 32, 'long long': 64}
     cs_arch = _capstone.CS_ARCH_ARM
     cs_mode = _capstone.CS_MODE_LITTLE_ENDIAN
     _cs_thumb = None
+    uc_arch = _unicorn.UC_ARCH_ARM if _unicorn else None
+    uc_mode = _unicorn.UC_MODE_LITTLE_ENDIAN if _unicorn else None
+    uc_const = _unicorn.arm_const if _unicorn else None
+    uc_prefix = "UC_ARM_" if _unicorn else None
     #self.ret_instruction = "\x0E\xF0\xA0\xE1" # this is mov pc, lr
     ret_instruction = "\x1E\xFF\x2F\xE1" # this is bx lr
     nop_instruction = "\x00\x00\x00\x00"

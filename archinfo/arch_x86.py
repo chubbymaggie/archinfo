@@ -1,5 +1,10 @@
 import capstone as _capstone
 
+try:
+    import unicorn as _unicorn
+except ImportError:
+    _unicorn = None
+
 from .arch import Arch
 from .archerror import ArchError
 
@@ -10,6 +15,41 @@ class ArchX86(Arch):
         super(ArchX86, self).__init__(endness)
         if self.vex_archinfo:
             self.vex_archinfo['x86_cr0'] = 0xFFFFFFFF
+
+    @property
+    def capstone(self):
+        if self.cs_arch is None:
+            raise ArchError("Arch %s does not support disassembly with capstone" % self.name)
+        if self._cs is None:
+            self._cs = _capstone.Cs(self.cs_arch, self.cs_mode)
+            self._cs.syntax = _capstone.CS_OPT_SYNTAX_ATT if self._x86_syntax == 'at&t' else _capstone.CS_OPT_SYNTAX_INTEL
+            self._cs.detail = True
+        return self._cs
+
+    @property
+    def capstone_x86_syntax(self):
+        """
+        Get the current syntax capstone uses for x86. It can be 'intel' or 'at&t'
+
+        :return: Capstone's current x86 syntax
+        :rtype: str
+        """
+
+        return self._x86_syntax
+
+    @capstone_x86_syntax.setter
+    def capstone_x86_syntax(self, new_syntax):
+        """
+        Set the syntax that capstone outputs for x86.
+        """
+
+        if new_syntax not in ('intel', 'at&t'):
+            raise ArchError('Unsupported Capstone x86 syntax. It must be either "intel" or "at&t".')
+
+        if new_syntax != self._x86_syntax:
+            # clear the existing capstone instance
+            self._cs = None
+            self._x86_syntax = new_syntax
 
     bits = 32
     vex_arch = "VexArchX86"
@@ -24,17 +64,33 @@ class ArchX86(Arch):
     sp_offset = 24
     bp_offset = 28
     ret_offset = 8
+    vex_conditional_helpers = True
     syscall_num_offset = 8
     call_pushes_ret = True
     stack_change = -4
     memory_endness = "Iend_LE"
     register_endness = "Iend_LE"
+    sizeof = {'short': 16, 'int': 32, 'long': 32, 'long long': 64}
     cs_arch = _capstone.CS_ARCH_X86
     cs_mode = _capstone.CS_MODE_32 + _capstone.CS_MODE_LITTLE_ENDIAN
-    function_prologs = {
+    _x86_syntax = None # Set it to 'att' in order to use AT&T syntax for x86
+    uc_arch = _unicorn.UC_ARCH_X86 if _unicorn else None
+    uc_mode = (_unicorn.UC_MODE_32 + _unicorn.UC_MODE_LITTLE_ENDIAN) if _unicorn else None
+    uc_const = _unicorn.x86_const if _unicorn else None
+    uc_prefix = "UC_X86_" if _unicorn else None
+    function_prologs = [
+        r"\x8b\xff\x55\x8b\xec", # mov edi, edi; push ebp; mov ebp, esp
         r"\x55\x8b\xec", # push ebp; mov ebp, esp
         r"\x55\x89\xe5",  # push ebp; mov ebp, esp
-    }
+        r"\x55\x57\x56",  # push ebp; push edi; push esi
+        # mov eax, 0x000000??; (push ebp; push eax; push edi; push ebx; push esi; push edx; push ecx) sub esp
+        r"\xb8[\x00-\xff]\x00\x00\x00[\x50\x51\x52\x53\x55\x56\x57]{0,7}\x8b[\x00-\xff]{2}",
+        # (push ebp; push eax; push edi; push ebx; push esi; push edx; push ecx) sub esp
+        r"[\x50\x51\x52\x53\x55\x56\x57]{1,7}\x83\xec[\x00-\xff]{2,4}",
+        # (push ebp; push eax; push edi; push ebx; push esi; push edx; push ecx) mov xxx, xxx
+        r"[\x50\x51\x52\x53\x55\x56\x57]{1,7}\x8b[\x00-\xff]{2}",
+        r"(\x81|\x83)\xec",  # sub xxx %esp
+    ]
     function_epilogs = {
         r"\xc9\xc3", # leave; ret
         r"([^\x41][\x50-\x5f]{1}|\x41[\x50-\x5f])\xc3", # pop <reg>; ret
@@ -51,14 +107,18 @@ class ArchX86(Arch):
         ( 'gdt', 0, False, None ),
         ( 'ldt', 0, False, None ),
         ( 'id', 1, False, None ),
-        ( 'ac', 0, False, None )
+        ( 'ac', 0, False, None ),
+        ( 'ftop', 0, False, None ),
+        ( 'fpu_tags', 0, False, None),
+        ( 'fs', 0, False, None),
+        ( 'gs', 0, False, None)
     ]
     entry_register_values = {
         'eax': 0x1C,
         'edx': 'ld_destructor',
         'ebp': 0
     }
-    default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'eip' ]
+    default_symbolic_registers = [ 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi' ]
     register_names = {
         8: 'eax',
         12: 'ecx',
@@ -87,24 +147,15 @@ class ArchX86(Arch):
         68: 'eip',
 
         # fpu registers
-        72: 'st0',
-        80: 'st1',
-        88: 'st2',
-        96: 'st2',
-        104: 'st4',
-        112: 'st5',
-        120: 'st6',
-        128: 'st7',
-
-        # fpu tags
-        136: 'fpu_t0',
-        137: 'fpu_t1',
-        138: 'fpu_t2',
-        139: 'fpu_t3',
-        140: 'fpu_t4',
-        141: 'fpu_t5',
-        142: 'fpu_t6',
-        143: 'fpu_t7',
+        72: 'mm0',
+        80: 'mm1',
+        88: 'mm2',
+        96: 'mm3',
+        104: 'mm4',
+        112: 'mm5',
+        120: 'mm6',
+        128: 'mm7',
+        136: 'fpu_tags',
 
         # fpu settings
         144: 'fpround',
@@ -129,15 +180,23 @@ class ArchX86(Arch):
         296: 'gs',
         298: 'ss',
 
-        304: 'ldt',
-        312: 'gdt'
+        304: 'ldt', # THESE ARE REALLY TRICKY since their size depends on your host word size :(
+        312: 'gdt',
+
+        320: 'emnote',
+        324: 'cmstart',
+        328: 'cmlen',
+        332: 'nraddr',
+        336: 'sc_class',
+        340: 'ip_at_syscall',
+        344: 'padding1'
     }
 
     registers = {
-        'eax': (8, 4),
-        'ecx': (12, 4),
-        'edx': (16, 4),
-        'ebx': (20, 4),
+        'eax': (8, 4), 'ax': (8, 2), 'al': (8, 1), 'ah': (9, 1),
+        'ecx': (12, 4), 'cx': (12, 2), 'cl': (12, 1), 'ch': (13, 1),
+        'edx': (16, 4), 'dx': (16, 2), 'dl': (16, 1), 'dh': (17, 1),
+        'ebx': (20, 4), 'bx': (20, 2), 'bl': (20, 1), 'bh': (21, 1),
 
         'sp': (24, 4),
         'esp': (24, 4),
@@ -163,16 +222,8 @@ class ArchX86(Arch):
         'pc': (68, 4),
         'ip': (68, 4),
 
-        # fpu registers and mmx aliases
+        # fpu registers
         'fpu_regs': (72, 64),
-        'st0': (72, 8),
-        'st1': (80, 8),
-        'st2': (88, 8),
-        'st3': (96, 8),
-        'st4': (104, 8),
-        'st5': (112, 8),
-        'st6': (120, 8),
-        'st7': (128, 8),
         'mm0': (72, 8),
         'mm1': (80, 8),
         'mm2': (88, 8),
@@ -181,17 +232,7 @@ class ArchX86(Arch):
         'mm5': (112, 8),
         'mm6': (120, 8),
         'mm7': (128, 8),
-
-        # fpu tags
         'fpu_tags': (136, 8),
-        'fpu_t0': (136, 1),
-        'fpu_t1': (137, 1),
-        'fpu_t2': (138, 1),
-        'fpu_t3': (139, 1),
-        'fpu_t4': (140, 1),
-        'fpu_t5': (141, 1),
-        'fpu_t6': (142, 1),
-        'fpu_t7': (143, 1),
 
         # fpu settings
         'fpround': (144, 4),
@@ -216,7 +257,15 @@ class ArchX86(Arch):
         'gs': (296, 2),
         'ss': (298, 2),
         'ldt': (304, 8),
-        'gdt': (312, 8)
+        'gdt': (312, 8),
+
+        'emnote': (320, 4),
+        'cmstart': (324, 4),
+        'cmlen': (328, 4),
+        'nraddr': (332, 4),
+        'sc_class': (336, 4),
+        'ip_at_syscall':(340, 4),
+        'padding1': (344, 4)
     }
 
     argument_registers = { registers['eax'][0],
